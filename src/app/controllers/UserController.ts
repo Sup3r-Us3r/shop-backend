@@ -6,6 +6,7 @@ import knex from '../../database/connection';
 import {
   cloudinarySingleUpload,
   cloudinarySingleUpdate,
+  cloudinarySingleDestroy,
 } from '../../utils/cloudinary';
 
 interface IUser {
@@ -34,13 +35,20 @@ class UserController {
         return res.status(409).json({ error: 'Account already exists' });
       }
 
+      if (!name || !email || !password) {
+        return res.status(400).json({ error: 'All fields are mandatory' });
+      }
+
       const serializedUserData = {
         name,
         email,
         password: hashSync(password, 8),
         photo: req.file
           ? await cloudinarySingleUpload(req.file.path, 'user')
-          : process.env.DEFAULT_PHOTO,
+          : {
+            public_id: process.env.DEFAULT_PHOTO_PUBLIC_ID,
+            url: process.env.DEFAULT_PHOTO_URL,
+          },
       }
 
       await knex('tb_user').insert(serializedUserData);
@@ -75,6 +83,7 @@ class UserController {
         name: accountExists.name,
         email: accountExists.email,
         photo: accountExists.photo,
+        created_at: accountExists.created_at,
       }
 
       return res.json(serializedUserData);
@@ -101,11 +110,16 @@ class UserController {
         email: email ? email: accountExists.email,
         password: password ? hashSync(password, 8) : accountExists.password,
         photo: req.file
-          ? await cloudinarySingleUpdate(
-              accountExists.photo.public_id,
-              req.file.path,
-              'user',
-            )
+          ? accountExists.photo.public_id !== process.env.DEFAULT_PHOTO_PUBLIC_ID
+            ? await cloudinarySingleUpdate(
+                accountExists.photo.public_id,
+                req.file.path,
+                'user',
+              )
+            : await cloudinarySingleUpload(
+                req.file.path,
+                'user',
+              )
           : accountExists.photo,
       }
 
@@ -132,11 +146,17 @@ class UserController {
     try {
       const accountExists = await knex('tb_user')
         .where({ id })
-        .first();
+        .first() as IUser;
 
       if (!accountExists) {
         return res.status(400).json({ error: 'Account does not exist' });
       }
+
+      // Do not remove the user's default photo in cloudinary
+      if (accountExists.photo.public_id !== process.env.DEFAULT_PHOTO_PUBLIC_ID)
+        {
+          await cloudinarySingleDestroy(accountExists.photo.public_id);
+        }
 
       await knex('tb_user')
         .where({ id })
