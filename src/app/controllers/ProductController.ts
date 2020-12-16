@@ -5,7 +5,7 @@ import knex from '../../database/connection';
 import {
   cloudinaryMultipleUpload,
   cloudinaryMultipleUpdate,
-  cloudinaryDestroy,
+  cloudinaryMultipleDestroy,
   IImageData,
 } from '../../utils/cloudinary';
 
@@ -26,6 +26,10 @@ class ProductController {
     const { name, price, category, description }: IProduct = req.body;
 
     try {
+      if (!name || !price || !category || !description) {
+        return res.status(400).json({ error: 'All fields are mandatory' });
+      }
+
       const serializedUserData = {
         name,
         price: Number(price),
@@ -102,8 +106,6 @@ class ProductController {
         return idsOfImagesFromRemove.includes(product.image_id);
       }).map((product: IProduct) => product.public_id);
 
-      console.log('aa', publicIdsFromRemove);
-
       const requestImages = req.files as Express.Multer.File[];
       const imagesPath = requestImages.map((filePath) => filePath.path);
 
@@ -112,7 +114,7 @@ class ProductController {
         imagesPath,
         'product',
       );
-      
+
       const newImages = serializedImagesData.map((image: IImageData) => ({
         product_id: id,
         public_id: image.public_id,
@@ -162,7 +164,7 @@ class ProductController {
       const publicIdsFromRemove = productExists
         .map((product: IProduct) => product.public_id);
 
-      await cloudinaryDestroy(publicIdsFromRemove);
+      await cloudinaryMultipleDestroy(publicIdsFromRemove);
 
       await knex('tb_product')
         .where({ id })
@@ -229,6 +231,7 @@ class ProductController {
           .filter((image: { product_id: number }) =>
             image.product_id === product.id
           ),
+        created_at: product.created_at,
       }));
 
       return res.json(serializedProductsData);
