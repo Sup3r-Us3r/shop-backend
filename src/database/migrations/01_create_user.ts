@@ -10,7 +10,7 @@ export async function up(knex: Knex) {
     table.string('password').notNullable();
     table.jsonb('photo');
     table.string('recoverycode');
-    table.date('created_at').defaultTo(knex.fn.now());
+    table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
   });
 }
 
