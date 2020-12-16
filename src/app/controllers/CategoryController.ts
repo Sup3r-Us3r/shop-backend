@@ -5,6 +5,7 @@ import knex from '../../database/connection';
 import {
   cloudinarySingleUpload,
   cloudinarySingleUpdate,
+  cloudinarySingleDestroy,
 } from '../../utils/cloudinary';
 
 interface ICategory {
@@ -64,14 +65,10 @@ class CategoryController {
           : categoryExists.image,
       }
 
-      const response = await knex('tb_category AS C')
+      const response = await knex('tb_category')
         .where({ id })
         .update(serializedCategoryData)
-        .returning([
-          'C.id',
-          'C.name',
-          'C.image',
-        ]);
+        .returning('*');
 
       return res.json(...response);
     } catch (err) {
@@ -91,6 +88,8 @@ class CategoryController {
         return res.status(400).json({ error: 'Category does not exist'})
       }
 
+      await cloudinarySingleDestroy(categoryExists.image.public_id);
+
       await knex('tb_category')
         .where({ id })
         .delete();
@@ -105,13 +104,9 @@ class CategoryController {
     const { id } = req.params;
 
     try {
-      const response = await knex('tb_category AS C')
+      const response = await knex('tb_category')
         .where({ id })
-        .select([
-          'C.id',
-          'C.name',
-          'C.image',
-        ])
+        .select('*')
         .first();
 
       if (!response) {
@@ -126,22 +121,18 @@ class CategoryController {
 
   async index(req: Request, res: Response) {
     try {
-      const categories = await knex('tb_category AS C')
-        .select(
-          'C.id',
-          'C.name',
-          'C.image',
-        );
+      const categories = await knex('tb_category')
+        .select('*');
 
       if (!categories) {
         return res.status(400)
-          .json({ error: 'Error error when listing categories' });
+          .json({ error: 'Error when listing categories' });
       }
 
       return res.json(categories);
     } catch (err) {
       return res.status(500)
-        .json({ error: 'Error error when listing categories' });
+        .json({ error: 'Error when listing categories' });
     }
   }
 }
