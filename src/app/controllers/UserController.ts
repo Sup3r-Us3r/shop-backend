@@ -3,15 +3,20 @@ import { compareSync, hashSync } from 'bcrypt';
 
 import knex from '../../database/connection';
 
-import { cloudinaryUpload } from '../../utils/cloudinary';
-// import cloudinary from '../../config/cloudinary';
+import {
+  cloudinarySingleUpload,
+  cloudinarySingleUpdate,
+} from '../../utils/cloudinary';
 
 interface IUser {
   id: number;
   name: string;
   email: string;
   password: string;
-  photo?: string;
+  photo: {
+    public_id: string;
+    url: string;
+  };
   recoverycode?: string;
   created_at?: Date;
 }
@@ -21,11 +26,11 @@ class UserController {
     const { name, email, password }: IUser = req.body;
 
     try {
-      const userExists = await knex('tb_user')
+      const accountExists = await knex('tb_user')
         .where({ email })
         .first();
 
-      if (userExists) {
+      if (accountExists) {
         return res.status(409).json({ error: 'Account already exists' });
       }
 
@@ -34,17 +39,15 @@ class UserController {
         email,
         password: hashSync(password, 8),
         photo: req.file
-          ? await cloudinaryUpload([req.file.path], 'user')
+          ? await cloudinarySingleUpload(req.file.path, 'user')
           : process.env.DEFAULT_PHOTO,
       }
 
-      const create = await knex('tb_user').insert(serializedUserData);
+      await knex('tb_user').insert(serializedUserData);
 
-      if (create) {
-        return res.sendStatus(201);
-      }
+      return res.sendStatus(201);
     } catch (err) {
-      return res.status(500).json({ error: 'Account already exists' });
+      return res.status(500).json({ error: 'Error creating user' });
     }
   }
 
@@ -52,15 +55,15 @@ class UserController {
     const { email, password }: IUser = req.body;
 
     try {
-      const userExists = await knex('tb_user')
+      const accountExists = await knex('tb_user')
         .where({ email })
         .first() as IUser;
 
-      if (!userExists) {
+      if (!accountExists) {
         return res.status(400).json({ error: 'Account does not exist' });
       }
 
-      const passwordHashed = userExists.password;
+      const passwordHashed = accountExists.password;
       const passwordCheck = compareSync(password, passwordHashed);
       
       if (!passwordCheck) {
@@ -68,10 +71,10 @@ class UserController {
       }
 
       const serializedUserData = {
-        id: userExists.id,
-        name: userExists.name,
-        email: userExists.email,
-        photo: userExists.photo,
+        id: accountExists.id,
+        name: accountExists.name,
+        email: accountExists.email,
+        photo: accountExists.photo,
       }
 
       return res.json(serializedUserData);
@@ -85,25 +88,37 @@ class UserController {
     const { name, email, password }: IUser = req.body;
 
     try {
-      const userExists = await knex('tb_user')
+      const accountExists = await knex('tb_user')
         .where({ id })
         .first() as IUser;
 
-      if (!userExists) {
+      if (!accountExists) {
         return res.status(400).json({ error: 'Account does not exist' });
+      }
+
+      const serializedUserData = {
+        name: name ? name: accountExists.name,
+        email: email ? email: accountExists.email,
+        password: password ? hashSync(password, 8) : accountExists.password,
+        photo: req.file
+          ? await cloudinarySingleUpdate(
+              accountExists.photo.public_id,
+              req.file.path,
+              'user',
+            )
+          : accountExists.photo,
       }
 
       const response = await knex('tb_user AS U')
         .where({ id })
-        .update({
-          name: name ? name: userExists.name,
-          email: email ? email: userExists.email,
-          password: password ? hashSync(password, 8) : userExists.password,
-          photo: req.file
-            ? `${process.env.BASE_URL}/uploads/${req.file.filename}`
-            : userExists.photo,
-        })
-        .returning('*');
+        .update(serializedUserData)
+        .returning([
+          'U.id',
+          'U.name',
+          'U.email',
+          'U.photo',
+          'U.created_at',
+        ]);
 
       return res.json(...response);
     } catch (err) {
@@ -115,15 +130,15 @@ class UserController {
     const { id } = req.params;
 
     try {
-      const userExists = await knex('tb_user')
+      const accountExists = await knex('tb_user')
         .where({ id })
         .first();
 
-      if (!userExists) {
+      if (!accountExists) {
         return res.status(400).json({ error: 'Account does not exist' });
       }
 
-      await knex('tb_user AS U')
+      await knex('tb_user')
         .where({ id })
         .delete();
 
@@ -137,22 +152,22 @@ class UserController {
     const { id } = req.params;
 
     try {
-      const userExists = await knex('tb_user')
+      const user = await knex('tb_user AS U')
         .where({ id })
-        .first() as IUser;
+        .select([
+          'U.id',
+          'U.name',
+          'U.email',
+          'U.photo',
+          'U.created_at',
+        ])
+        .first();
 
-      if (!userExists) {
+      if (!user) {
         return res.status(400).json({ error: 'Account does not exist' });
       }
 
-      const serializedUserData = {
-        id: userExists.id,
-        name: userExists.name,
-        email: userExists.email,
-        photo: userExists.photo,
-      }
-
-      return res.json(serializedUserData);
+      return res.json(user);
     } catch (err) {
       return res.status(500).json({ error: 'Error while listing user' });
     }
@@ -171,12 +186,12 @@ class UserController {
 
       if (!users) {
         return res.status(400)
-          .json({ error: 'Error error when listing users' });
+          .json({ error: 'Error when listing users' });
       }
 
       return res.json(users);
     } catch (err) {
-      return res.status(500).json({ error: 'Error error when listing users' });
+      return res.status(500).json({ error: 'Error when listing users' });
     }
   }
 }

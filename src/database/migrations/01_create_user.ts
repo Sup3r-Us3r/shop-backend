@@ -8,7 +8,7 @@ export async function up(knex: Knex) {
     table.string('name').notNullable();
     table.string('email').notNullable().unique();
     table.string('password').notNullable();
-    table.string('photo');
+    table.jsonb('photo');
     table.string('recoverycode');
     table.date('created_at').defaultTo(knex.fn.now());
   });
