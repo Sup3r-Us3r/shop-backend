@@ -2,40 +2,100 @@ import { UploadApiOptions } from 'cloudinary';
 
 import cloudinary from '../config/cloudinary';
 
-export async function cloudinaryUpload(path: string[], folder: string) {
-  let imageUrl;
+export interface IImageData {
+  public_id: string;
+  url: string;
+}
+
+export async function cloudinarySingleUpload(
+  filePath: string,
+  folder: string
+): Promise<IImageData> {
+  let imageData: IImageData = {
+    public_id: '',
+    url: '',
+  };
 
   const cloudinaryOptions = {
     folder,
   } as UploadApiOptions;
 
-  const newImagesPromises = path
+  try {
+    await cloudinary.uploader
+      .upload(filePath, cloudinaryOptions, (err, data) => {
+        if (err) {
+          return err;
+        }
+
+        if (data) {
+          imageData = {
+            public_id: data.public_id,
+            url: data.secure_url,
+          };
+        }
+      });
+
+    return imageData;
+  } catch (err) {
+    return err;
+  }
+}
+
+export async function cloudinaryMultipleUpload(
+  filePath: string[],
+  folder: string
+) {
+  let imageData: IImageData[] = [];
+
+  const cloudinaryOptions = {
+    folder,
+  } as UploadApiOptions;
+
+  const newImagesPromises: Promise<IImageData>[] = filePath
     .map((path) => new Promise((resolve, reject) => {
       cloudinary.uploader.upload(path, cloudinaryOptions, (err, data) => {
         if (err) {
           return reject(err);
-        } else {
-          return resolve(data?.secure_url);
+        }
+
+        if (data) {
+          return resolve({
+            public_id: data.public_id,
+            url: data.secure_url,
+          });
         }
       });
     }));
 
   await Promise.all(newImagesPromises)
-    .then((imageUrlData) => {
-      imageUrl = imageUrlData;
+    .then((allImages) => {
+      imageData = allImages;
     })
     .catch((err) => err);
 
-  return imageUrl;
+  return imageData;
 }
 
-export async function cloudinaryUpdate(
+export async function cloudinarySingleUpdate(
+  publicId: string,
+  filePath: string,
+  folder: string
+) {
+  await cloudinaryDestroy([publicId]);
+  const response = await cloudinarySingleUpload(filePath, folder);
+
+  return response;
+}
+
+export async function cloudinaryMultipleUpdate(
   publicId: string[],
-  path: string[],
+  filePath: string[],
   folder: string
 ) {
   await cloudinaryDestroy(publicId);
-  await cloudinaryUpload(path, folder);
+  const response = await cloudinaryMultipleUpload(filePath, folder);
+
+  return response;
 }
 
 export async function cloudinaryDestroy(publicId: string[]) {
@@ -45,12 +105,12 @@ export async function cloudinaryDestroy(publicId: string[]) {
           if (err) {
             return reject(err);
           } else {
-            return resolve();
+            return resolve(true);
           }
         });
       }));
 
-    Promise.all(deletedImagesPromises)
-      .then(() => true)
+    await Promise.all(deletedImagesPromises)
+      .then((response) => response)
       .catch((err) => err);
 }
