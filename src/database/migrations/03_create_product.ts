@@ -7,6 +7,7 @@ export async function up(knex: Knex) {
     table.float('price', 2).notNullable();
     table.string('category').notNullable();
     table.text('description').notNullable();
+    table.date('created_at').defaultTo(knex.fn.now());
   });
 }
 
