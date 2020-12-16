@@ -4,6 +4,7 @@ export async function up(knex: Knex) {
   return knex.schema.createTable('tb_category', table => {
     table.increments('id');
     table.string('name').notNullable();
+    table.jsonb('image').notNullable();
   });
 }
 
