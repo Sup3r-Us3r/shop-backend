@@ -1,5 +1,3 @@
-import 'dotenv/config';
-
 import { UploadApiOptions } from 'cloudinary';
 
 import cloudinary from '../config/cloudinary';
@@ -115,17 +113,17 @@ export async function cloudinarySingleDestroy(publicId: string) {
 
 export async function cloudinaryMultipleDestroy(publicId: string[]) {
   const deletedImagesPromises = publicId
-      .map((id) => new Promise((resolve, reject) => {
-        cloudinary.uploader.destroy(id, (err) => {
-          if (err) {
-            return reject(err);
-          } else {
-            return resolve(true);
-          }
-        });
-      }));
+    .map((id) => new Promise((resolve, reject) => {
+      cloudinary.uploader.destroy(id, (err) => {
+        if (err) {
+          return reject(err);
+        } else {
+          return resolve(true);
+        }
+      });
+    }));
 
-    await Promise.all(deletedImagesPromises)
-      .then((response) => response)
-      .catch((err) => err);
+  await Promise.all(deletedImagesPromises)
+    .then((response) => response)
+    .catch((err) => err);
 }
