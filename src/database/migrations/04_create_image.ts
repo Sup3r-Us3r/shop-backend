@@ -9,7 +9,8 @@ export async function up(knex: Knex) {
       .inTable('tb_product')
       .onUpdate('CASCADE')
       .onDelete('CASCADE');
-    table.string('path').notNullable();
+    table.string('public_id').notNullable();
+    table.string('url').notNullable();
   });
 }
 
