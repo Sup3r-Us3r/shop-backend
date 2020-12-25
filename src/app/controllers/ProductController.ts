@@ -11,8 +11,10 @@ import {
 
 interface IProduct {
   id: number;
+  star: boolean;
   name: string;
   price: number;
+  amount: number;
   category: string;
   description: string;
   image_id: number;
@@ -23,22 +25,29 @@ interface IProduct {
 
 class ProductController {
   async create(req: Request, res: Response) {
-    const { name, price, category, description }: IProduct = req.body;
+    const {
+      name,
+      price,
+      amount,
+      category,
+      description
+    }: IProduct = req.body;
 
     try {
-      if (!name || !price || !category || !description) {
+      if (!name || !price || !amount || !category || !description) {
         return res.status(400).json({ error: 'All fields are mandatory' });
       }
 
-      const serializedUserData = {
+      const serializedProductData = {
         name,
         price: Number(price),
+        amount: Number(amount),
         category,
         description,
       }
 
       const createProduct = await knex('tb_product AS P')
-        .insert(serializedUserData)
+        .insert(serializedProductData)
         .returning('P.id')
 
       if (createProduct) {
@@ -59,14 +68,14 @@ class ProductController {
 
       return res.sendStatus(201);
     } catch (err) {
-      return res.status(500).json({ error: 'Error creating user' });
+      return res.status(500).json({ error: 'Error creating product' });
     }
   }
 
   async update (req: Request, res: Response) {
     const { id } = req.params;
     const { removeImages } = req.query;
-    const { name, price, category, description }: IProduct = req.body;
+    const { name, price, amount, category, description }: IProduct = req.body;
 
     try {
       const productExists = await knex('tb_product AS P')
@@ -90,6 +99,7 @@ class ProductController {
       const serializedProductData = {
         name: name ? name : productExists[0].name,
         price: price ? price : productExists[0].price,
+        amount: amount ? amount : productExists[0].amount,
         category: category ? category : productExists[0].category,
         description: description ? description : productExists[0].description,
       }
@@ -182,7 +192,7 @@ class ProductController {
     try {
       const product = await knex('tb_product')
         .where({ id })
-        .first();
+        .first() as IProduct;
 
       const productImages = await knex('tb_image')
         .where({ product_id: id });
@@ -196,6 +206,7 @@ class ProductController {
         id: product.id,
         name: product.name,
         price: product.price,
+        amount: product.amount,
         category: product.category,
         description: product.description,
         images: productImages
@@ -212,8 +223,13 @@ class ProductController {
   }
 
   async index(req: Request, res: Response) {
+    const { category } = req.query;
+
     try {
-      const products = await knex('tb_product');
+      const products = category
+        ? await knex('tb_product').where({ category })
+        : await knex('tb_product');
+
       const productsImages = await knex('tb_image');
 
       if (!products || !productsImages) {
@@ -223,8 +239,10 @@ class ProductController {
 
       const serializedProductsData = products.map((product: IProduct) => ({
         id: product.id,
+        star: product.star,
         name: product.name,
         price: product.price,
+        amount: product.amount,
         category: product.category,
         description: product.description,
         images: productsImages
@@ -234,10 +252,34 @@ class ProductController {
         created_at: product.created_at,
       }));
 
-      return res.json(serializedProductsData);
+      return res.json(serializedProductsData
+        .sort((a, b) => b.id - a.id)
+      );
     } catch (err) {
       return res.status(500)
         .json({ error: 'Error when listing products' });
+    }
+  }
+
+  async toggleStar(req: Request, res: Response) {
+    const { id } = req.params
+
+    try {
+      const productExists = await knex('tb_product')
+        .where({ id })
+        .first() as IProduct;
+
+      if (!productExists) {
+        return res.status(400).json({ error: 'Product does not exist'});
+      }
+
+      await knex('tb_product')
+        .where({ id })
+        .update({ star: !productExists.star });
+
+      return res.sendStatus(200);
+    } catch (err) {
+      return res.status(500).json({ error: 'Error updating product' });
     }
   }
 }
