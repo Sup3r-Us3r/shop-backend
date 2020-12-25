@@ -22,5 +22,6 @@ productRouter.put(
 productRouter.delete('/delete/:id', ProductController.delete);
 productRouter.get('/show/:id', ProductController.show);
 productRouter.get('/index', ProductController.index);
+productRouter.get('/togglestar/:id', ProductController.toggleStar);
 
 export default productRouter;
